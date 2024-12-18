@@ -145,6 +145,19 @@ func (ur *userRepository) TopUpBalance(userID int, request entity.UserTopUpBalan
 			LastName:  user.LastName,
 			Phone:     user.PhoneNumber,
 		},
+		ItemDetails: []struct {
+			ID       string  `json:"id"`
+			Price    float64 `json:"price"`
+			Quantity int     `json:"quantity"`
+			Name     string  `json:"name"`
+		}{
+			{
+				ID:       orderID,
+				Price:    request.Amount,
+				Quantity: 1,
+				Name:     "Top-up Balance",
+			},
+		},
 		BankTransfer: struct {
 			Bank string `json:"bank"`
 		}{
