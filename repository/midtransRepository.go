@@ -27,7 +27,10 @@ func (mr *midtransRepository) HandleTopUpCallback(payload entity.MidtransCallbac
 		mr.DB.Where("order_id = ?", payload.OrderID).First(&transaction)
 		mr.DB.Model(&user).Where("user_id = ?", transaction.UserID).Update("balance", user.Balance+transaction.Amount)
 		mr.DB.Model(&transaction).Where("order_id = ?", payload.OrderID).Update("transaction_status", "settlement")
-		mr.DB.Model(&payment).Where("order_id = ?", payload.OrderID).Update("payment_status", "settlement")
+		mr.DB.Model(&payment).Where("order_id = ?", payload.OrderID).Updates(map[string]interface{}{
+			"payment_status": "settlement",
+			"payment_date":   payload.TransactionTime,
+		})
 	}
 
 	if payload.TransactionStatus == "expire" || payload.TransactionStatus == "cancel" {

@@ -181,7 +181,7 @@ func (ur *userRepository) TopUpBalance(userID int, request entity.UserTopUpBalan
 		TransactionType: "topup",
 		PaymentDate:     nil,
 		PaymentStatus:   response.TransactionStatus,
-		PaymentMethod:   "bank_transfer",
+		PaymentMethod:   response.PaymentType + " - " + response.VANumbers[0].Bank,
 	}
 
 	result = ur.DB.Save(&payment)
