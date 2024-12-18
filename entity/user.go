@@ -20,3 +20,8 @@ type UserRegisterPayload struct {
 	Password    string `json:"password" form:"password" query:"password"`
 	PhoneNumber string `json:"phone_number" form:"phone_number" query:"phone_number"`
 }
+
+type UserLoginPayload struct {
+	Email    string `json:"email" form:"email" query:"email"`
+	Password string `json:"password" form:"password" query:"password"`
+}

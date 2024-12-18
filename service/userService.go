@@ -2,15 +2,20 @@ package service
 
 import (
 	"fmt"
+	"log"
 	"lux-hotel/entity"
 	"lux-hotel/repository"
+	"os"
 	"strconv"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
 )
 
 type UserService interface {
 	Register(c echo.Context) error
+	Login(c echo.Context) error
 }
 
 type userService struct {
@@ -21,7 +26,7 @@ func NewUserService(userRepository repository.UserRepository) UserService {
 	return &userService{UserRepository: userRepository}
 }
 
-func (s *userService) Register(c echo.Context) error {
+func (us *userService) Register(c echo.Context) error {
 	var request entity.UserRegisterPayload
 
 	c.Bind(&request)
@@ -36,7 +41,7 @@ func (s *userService) Register(c echo.Context) error {
 		})
 	}
 
-	user, err := s.UserRepository.Register(request)
+	user, err := us.UserRepository.Register(request)
 
 	if err != nil {
 		errCode, _ := strconv.Atoi(err.Error()[:3])
@@ -52,6 +57,53 @@ func (s *userService) Register(c echo.Context) error {
 		Status:  201,
 		Message: "User registered successfully",
 		Data:    user,
+	})
+}
+
+func (us *userService) Login(c echo.Context) error {
+	var request entity.UserLoginPayload
+
+	c.Bind(&request)
+
+	// Validate the request payload
+	if err := validateLoginPayload(request); err != nil {
+		errCode, _ := strconv.Atoi(err.Error()[:3])
+		errMessage := err.Error()[6:]
+
+		return c.JSON(errCode, entity.ResponseError{
+			Status:  errCode,
+			Message: errMessage,
+		})
+	}
+
+	user, err := us.UserRepository.Login(request)
+
+	if err != nil {
+		errCode, _ := strconv.Atoi(err.Error()[:3])
+		errMessage := err.Error()[6:]
+
+		return c.JSON(errCode, entity.ResponseError{
+			Status:  errCode,
+			Message: errMessage,
+		})
+	}
+
+	// Generate JWT token
+	tokenString, err := generateJWTToken(user)
+
+	if err != nil {
+		return c.JSON(500, entity.ResponseError{
+			Status:  500,
+			Message: "Failed to generate token",
+		})
+	}
+
+	return c.JSON(200, entity.ResponseOK{
+		Status:  200,
+		Message: "User logged in successfully",
+		Data: map[string]string{
+			"token": tokenString,
+		},
 	})
 }
 
@@ -93,4 +145,41 @@ func validateRegisterPayload(request entity.UserRegisterPayload) error {
 	}
 
 	return nil
+}
+
+func validateLoginPayload(request entity.UserLoginPayload) error {
+	if request.Email == "" {
+		return fmt.Errorf("400 | email is required")
+	}
+
+	if len(request.Email) < 8 {
+		return fmt.Errorf("400 | email is not valid")
+	}
+
+	if request.Password == "" {
+		return fmt.Errorf("400 | password is required")
+	}
+
+	if len(request.Password) < 8 {
+		return fmt.Errorf("400 | password is not valid")
+	}
+
+	return nil
+}
+
+func generateJWTToken(user *entity.User) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"user_id": user.UserID,
+		"email":   user.Email,
+		"exp":     time.Now().Add(time.Hour * 1).Unix(),
+	})
+
+	tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SECRET_KEY")))
+
+	if err != nil {
+		log.Println(err)
+		return "", err
+	}
+
+	return tokenString, nil
 }

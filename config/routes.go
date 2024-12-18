@@ -18,6 +18,7 @@ func Routes(DB *gorm.DB) {
 
 	// User routes
 	api.POST("/users/register", userService.Register)
+	api.POST("/users/login", userService.Login)
 
 	e.Logger.Fatal(e.Start(":8080"))
 }
