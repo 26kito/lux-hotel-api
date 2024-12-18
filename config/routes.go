@@ -13,12 +13,17 @@ func Routes(DB *gorm.DB) {
 
 	userRepository := repository.NewUserRepository(DB)
 	userService := service.NewUserService(userRepository)
+	hotelRepository := repository.NewHotelRepository(DB)
+	hotelService := service.NewHotelService(hotelRepository)
 
 	api := e.Group("/api")
 
 	// User routes
 	api.POST("/users/register", userService.Register)
 	api.POST("/users/login", userService.Login)
+
+	// Hotel routes
+	api.GET("/hotel-list", hotelService.GetHotelList)
 
 	e.Logger.Fatal(e.Start(":8080"))
 }
