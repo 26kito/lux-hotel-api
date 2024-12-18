@@ -137,17 +137,31 @@ func (hr *hotelRepository) Payment(payload entity.BookingPaymentPayload) (*entit
 	var booking entity.Booking
 	var payment entity.Payment
 
-	error := hr.DB.Where("order_id = ?", payload.OrderID).First(&booking)
+	result := hr.DB.Where("order_id = ?", payload.OrderID).First(&booking)
 
-	if error.Error != nil {
-		if error.Error.Error() == "record not found" {
+	if result.Error != nil {
+		if result.Error.Error() == "record not found" {
 			return nil, fmt.Errorf("404 | Booking not found")
 		}
 
-		return nil, fmt.Errorf("500 | %v", error.Error)
+		return nil, fmt.Errorf("500 | %v", result.Error)
 	}
 
-	result := hr.DB.Where("user_id = ?", booking.GuestID).First(&user)
+	if booking.BookingStatus != "pending" {
+		return nil, fmt.Errorf("400 | Booking has been paid")
+	}
+
+	transaction, err := utils.MidtransTransactionStatusHandler(payload.OrderID)
+
+	if err != nil {
+		return nil, fmt.Errorf("500 | %v", err)
+	}
+
+	if transaction.TransactionStatus == "pending" {
+		return transaction, nil
+	}
+
+	result = hr.DB.Where("user_id = ?", booking.GuestID).First(&user)
 
 	if result.Error != nil {
 		if result.Error.Error() == "record not found" {
