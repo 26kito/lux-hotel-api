@@ -31,7 +31,7 @@ func Routes(DB *gorm.DB) {
 	api.GET("/hotel-list", hotelService.GetHotelList)
 	api.GET("/hotel/:id", hotelService.GetHotelDetail)
 
-	api.GET("/midtrans/callback", midtransService.HandleMidtransCallback)
+	api.POST("/midtrans/callback", midtransService.HandleMidtransCallback)
 
 	e.Logger.Fatal(e.Start(":8080"))
 }

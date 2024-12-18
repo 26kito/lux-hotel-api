@@ -101,6 +101,7 @@ func (ur *userRepository) GetBalance(userID int) (float64, error) {
 func (ur *userRepository) TopUpBalance(userID int, request entity.UserTopUpBalancePayload) (*entity.MidtransResponse, error) {
 	var user entity.User
 	var topUpTransaction entity.TopUpTransaction
+	var payment entity.Payment
 
 	result := ur.DB.Where("user_id = ?", userID).First(&user)
 
@@ -169,6 +170,24 @@ func (ur *userRepository) TopUpBalance(userID int, request entity.UserTopUpBalan
 
 	if err != nil {
 		log.Println(err)
+		return nil, fmt.Errorf("500 | internal server error")
+	}
+
+	payment = entity.Payment{
+		PaymentID:       response.TransactionID,
+		OrderID:         orderID,
+		UserID:          user.UserID,
+		TotalAmount:     request.Amount,
+		TransactionType: "topup",
+		PaymentDate:     nil,
+		PaymentStatus:   response.TransactionStatus,
+		PaymentMethod:   "bank_transfer",
+	}
+
+	result = ur.DB.Save(&payment)
+
+	if result.Error != nil {
+		log.Println(result.Error)
 		return nil, fmt.Errorf("500 | internal server error")
 	}
 
