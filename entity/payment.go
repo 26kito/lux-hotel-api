@@ -15,3 +15,8 @@ type Payment struct {
 	CreatedAt       time.Time  `gorm:"type:timestamp" json:"created_at"`
 	UpdatedAt       time.Time  `gorm:"type:timestamp" json:"updated_at"`
 }
+
+type BookingPaymentPayload struct {
+	OrderID       string `json:"order_id"`
+	PaymentMethod string `json:"payment_method"`
+}

@@ -21,15 +21,19 @@ func Routes(DB *gorm.DB) {
 
 	api := e.Group("/api")
 
-	// User routes
+	// User
 	api.POST("/users/register", userService.Register)
 	api.POST("/users/login", userService.Login)
 	api.GET("/users/balance", userService.GetBalance, middleware.ValidateJWTMiddleware)
 	api.POST("/users/balance/top-up", userService.TopUpBalance, middleware.ValidateJWTMiddleware)
 
-	// Hotel routes
+	// Hotel
 	api.GET("/hotel-list", hotelService.GetHotelList)
 	api.GET("/hotel/:id", hotelService.GetHotelDetail)
+	api.POST("/hotel/:id/booking", hotelService.Booking, middleware.ValidateJWTMiddleware)
+
+	// Payment
+	api.POST("/hotel/order/payment", hotelService.Payment, middleware.ValidateJWTMiddleware)
 
 	api.POST("/midtrans/callback", midtransService.HandleMidtransCallback)
 
