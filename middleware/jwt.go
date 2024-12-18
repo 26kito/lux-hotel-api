@@ -10,10 +10,11 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-var JWTSecret = os.Getenv("JWT_SECRET_KEY")
-
+// Custom JWT validation middleware
 func ValidateJWTMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
+		var JWTSecret = []byte(os.Getenv("JWT_SECRET_KEY"))
+
 		authHeader := c.Request().Header.Get("Authorization")
 
 		if authHeader == "" {
@@ -22,6 +23,7 @@ func ValidateJWTMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 
 		// Extract the token from the "Bearer" prefix
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+
 		if tokenString == authHeader {
 			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid token format"})
 		}

@@ -16,6 +16,7 @@ import (
 type UserService interface {
 	Register(c echo.Context) error
 	Login(c echo.Context) error
+	GetBalance(c echo.Context) error
 }
 
 type userService struct {
@@ -103,6 +104,30 @@ func (us *userService) Login(c echo.Context) error {
 		Message: "User logged in successfully",
 		Data: map[string]string{
 			"token": tokenString,
+		},
+	})
+}
+
+func (us *userService) GetBalance(c echo.Context) error {
+	userID := c.Get("user").(jwt.MapClaims)["user_id"].(float64)
+
+	balance, err := us.UserRepository.GetBalance(int(userID))
+
+	if err != nil {
+		errCode, _ := strconv.Atoi(err.Error()[:3])
+		errMessage := err.Error()[6:]
+
+		return c.JSON(errCode, entity.ResponseError{
+			Status:  errCode,
+			Message: errMessage,
+		})
+	}
+
+	return c.JSON(200, entity.ResponseOK{
+		Status:  200,
+		Message: "User balance retrieved successfully",
+		Data: map[string]float64{
+			"balance": balance,
 		},
 	})
 }

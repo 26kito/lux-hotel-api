@@ -1,6 +1,7 @@
 package config
 
 import (
+	"lux-hotel/middleware"
 	"lux-hotel/repository"
 	"lux-hotel/service"
 
@@ -21,6 +22,7 @@ func Routes(DB *gorm.DB) {
 	// User routes
 	api.POST("/users/register", userService.Register)
 	api.POST("/users/login", userService.Login)
+	api.GET("/users/balance", userService.GetBalance, middleware.ValidateJWTMiddleware)
 
 	// Hotel routes
 	api.GET("/hotel-list", hotelService.GetHotelList)

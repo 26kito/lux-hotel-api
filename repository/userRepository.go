@@ -12,6 +12,7 @@ import (
 type UserRepository interface {
 	Register(entity.UserRegisterPayload) (*entity.User, error)
 	Login(entity.UserLoginPayload) (*entity.User, error)
+	GetBalance(int) (float64, error)
 }
 
 type userRepository struct {
@@ -76,4 +77,17 @@ func (ur *userRepository) Login(request entity.UserLoginPayload) (*entity.User, 
 	}
 
 	return &user, nil
+}
+
+func (ur *userRepository) GetBalance(userID int) (float64, error) {
+	var user entity.User
+
+	result := ur.DB.Where("user_id = ?", userID).First(&user)
+
+	if result.Error != nil {
+		log.Println(result.Error)
+		return 0, fmt.Errorf("404 | user not found")
+	}
+
+	return user.Balance, nil
 }
