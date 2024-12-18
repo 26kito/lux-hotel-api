@@ -9,6 +9,7 @@ import (
 
 type HotelRepository interface {
 	GetHotelList() ([]entity.Hotel, error)
+	GetHotelDetail(id int) (entity.Hotel, error)
 }
 
 type hotelRepository struct {
@@ -29,4 +30,20 @@ func (hr *hotelRepository) GetHotelList() ([]entity.Hotel, error) {
 	}
 
 	return hotels, nil
+}
+
+func (hr *hotelRepository) GetHotelDetail(id int) (entity.Hotel, error) {
+	var hotel entity.Hotel
+
+	result := hr.DB.Preload("Rooms").First(&hotel, id)
+
+	if result.Error != nil {
+		if result.Error.Error() == "record not found" {
+			return hotel, fmt.Errorf("404 | Hotel not found")
+		}
+
+		return hotel, fmt.Errorf("500 | %v", result.Error)
+	}
+
+	return hotel, nil
 }

@@ -24,6 +24,7 @@ func Routes(DB *gorm.DB) {
 
 	// Hotel routes
 	api.GET("/hotel-list", hotelService.GetHotelList)
+	api.GET("/hotel/:id", hotelService.GetHotelDetail)
 
 	e.Logger.Fatal(e.Start(":8080"))
 }
