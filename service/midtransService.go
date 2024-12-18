@@ -1,6 +1,7 @@
 package service
 
 import (
+	"log"
 	"lux-hotel/entity"
 	"lux-hotel/repository"
 	"net/http"
@@ -22,6 +23,7 @@ func NewMidtransService(midtransRepository repository.MidtransRepository) Midtra
 }
 
 func (ms *midtransService) HandleMidtransCallback(c echo.Context) error {
+	log.Printf("Callback received from Midtrans: %+v", c.Request())
 	// Parse callback payload
 	var payload entity.MidtransCallbackResponse
 
