@@ -16,6 +16,8 @@ func Routes(DB *gorm.DB) {
 	userService := service.NewUserService(userRepository)
 	hotelRepository := repository.NewHotelRepository(DB)
 	hotelService := service.NewHotelService(hotelRepository)
+	midtransRepository := repository.NewMidtransRepository(DB)
+	midtransService := service.NewMidtransService(midtransRepository)
 
 	api := e.Group("/api")
 
@@ -28,6 +30,8 @@ func Routes(DB *gorm.DB) {
 	// Hotel routes
 	api.GET("/hotel-list", hotelService.GetHotelList)
 	api.GET("/hotel/:id", hotelService.GetHotelDetail)
+
+	api.GET("/midtrans/callback", midtransService.HandleMidtransCallback)
 
 	e.Logger.Fatal(e.Start(":8080"))
 }
