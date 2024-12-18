@@ -17,6 +17,7 @@ type UserService interface {
 	Register(c echo.Context) error
 	Login(c echo.Context) error
 	GetBalance(c echo.Context) error
+	TopUpBalance(c echo.Context) error
 }
 
 type userService struct {
@@ -132,6 +133,42 @@ func (us *userService) GetBalance(c echo.Context) error {
 	})
 }
 
+func (us *userService) TopUpBalance(c echo.Context) error {
+	userID := c.Get("user").(jwt.MapClaims)["user_id"].(float64)
+
+	var request entity.UserTopUpBalancePayload
+
+	c.Bind(&request)
+
+	if err := validateTopUpPayload(request); err != nil {
+		errCode, _ := strconv.Atoi(err.Error()[:3])
+		errMessage := err.Error()[6:]
+
+		return c.JSON(errCode, entity.ResponseError{
+			Status:  errCode,
+			Message: errMessage,
+		})
+	}
+
+	response, err := us.UserRepository.TopUpBalance(int(userID), request)
+
+	if err != nil {
+		errCode, _ := strconv.Atoi(err.Error()[:3])
+		errMessage := err.Error()[6:]
+
+		return c.JSON(errCode, entity.ResponseError{
+			Status:  errCode,
+			Message: errMessage,
+		})
+	}
+
+	return c.JSON(200, entity.ResponseOK{
+		Status:  200,
+		Message: "User balance topped up successfully",
+		Data:    response.VANumbers,
+	})
+}
+
 func validateRegisterPayload(request entity.UserRegisterPayload) error {
 	if request.FirstName == "" {
 		return fmt.Errorf("400 | first name is required")
@@ -207,4 +244,20 @@ func generateJWTToken(user *entity.User) (string, error) {
 	}
 
 	return tokenString, nil
+}
+
+func validateTopUpPayload(request entity.UserTopUpBalancePayload) error {
+	if request.Amount == 0 {
+		return fmt.Errorf("400 | amount is required")
+	}
+
+	if request.Amount < 500000.00 {
+		return fmt.Errorf("400 | top-up amount must be at least 500.000,00 IDR")
+	}
+
+	if request.BankTransfer == "" {
+		return fmt.Errorf("400 | bank transfer is required")
+	}
+
+	return nil
 }

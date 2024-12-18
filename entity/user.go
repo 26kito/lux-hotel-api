@@ -8,7 +8,7 @@ type User struct {
 	LastName    string    `gorm:"type:varchar(100)" json:"last_name"`
 	Email       string    `gorm:"unique" json:"email"`
 	Password    string    `gorm:"type:varchar(255);not null" json:"-"`
-	PhoneNumber string    `gorm:"type:varchar(20)" json:"phone_number"`
+	PhoneNumber string    `gorm:"type:varchar(15)" json:"phone_number"`
 	Balance     float64   `gorm:"type:decimal(10,2);default:0" json:"balance"`
 	CreatedAt   time.Time `gorm:"type:timestamp" json:"created_at"`
 }
@@ -24,4 +24,19 @@ type UserRegisterPayload struct {
 type UserLoginPayload struct {
 	Email    string `json:"email" form:"email" query:"email"`
 	Password string `json:"password" form:"password" query:"password"`
+}
+
+type TopUpTransaction struct {
+	ID                uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID            uint      `gorm:"not null" json:"user_id"`
+	OrderID           string    `gorm:"unique;not null" json:"order_id"`
+	Amount            float64   `gorm:"type:decimal(10,2);not null" json:"amount"`
+	TransactionStatus string    `gorm:"type:varchar(20);default:'pending'" json:"transaction_status"`
+	CreatedAt         time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt         time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+type UserTopUpBalancePayload struct {
+	Amount       float64 `json:"amount" form:"amount" query:"amount"`
+	BankTransfer string  `json:"bank_transfer" form:"bank_transfer" query:"bank_transfer"`
 }
