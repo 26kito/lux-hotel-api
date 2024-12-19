@@ -3,7 +3,6 @@ package repository
 import (
 	"fmt"
 	"lux-hotel/entity"
-	"lux-hotel/utils"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,7 +13,6 @@ type HotelRepository interface {
 	GetHotelList() ([]entity.Hotel, error)
 	GetHotelDetail(id int) (entity.Hotel, error)
 	Booking(userID, hotelID int, request entity.BookingRequest) (*entity.Booking, error)
-	Payment(payload entity.BookingPaymentPayload) (*entity.MidtransResponse, error)
 }
 
 type hotelRepository struct {
@@ -94,51 +92,13 @@ func (hr *hotelRepository) Booking(userID, hotelID int, request entity.BookingRe
 
 	booking := hr.createBookingEntity(orderID, bookingCode, *user, *hotel, *room, checkIn, checkOut, totalDays, totalPrice)
 
+	insertBooking := hr.DB.Save(&booking)
+
+	if insertBooking.Error != nil {
+		return nil, fmt.Errorf("500 | %v", insertBooking.Error)
+	}
+
 	return &booking, nil
-}
-
-func (hr *hotelRepository) Payment(payload entity.BookingPaymentPayload) (*entity.MidtransResponse, error) {
-	booking, bookingErr := hr.getBookingByOrderID(payload.OrderID)
-
-	if bookingErr != nil {
-		return nil, bookingErr
-	}
-
-	if bookingErr := hr.validateBookingStatus(booking); bookingErr != nil {
-		return nil, bookingErr
-	}
-
-	transaction, transactionErr := utils.MidtransTransactionStatusHandler(payload.OrderID)
-
-	if transactionErr != nil {
-		return nil, fmt.Errorf("500 | %v", transactionErr)
-	}
-
-	if transaction.TransactionStatus == "pending" {
-		return transaction, nil
-	}
-
-	user, userErr := hr.getUserByID(booking.GuestID)
-
-	if userErr != nil {
-		return nil, userErr
-	}
-
-	midtransPayload := hr.prepareMidtransPayload(payload, booking, user)
-
-	response, responseErr := utils.MidtransPaymentHandler(midtransPayload)
-
-	if responseErr != nil {
-		return nil, fmt.Errorf("500 | %v", responseErr)
-	}
-
-	payment := hr.createPaymentEntity(response, payload.OrderID, booking)
-
-	if err := hr.savePayment(payment); err != nil {
-		return nil, err
-	}
-
-	return response, nil
 }
 
 func (hr *hotelRepository) parseBookingDates(checkInStr, checkOutStr string) (time.Time, time.Time, error) {
@@ -155,30 +115,6 @@ func (hr *hotelRepository) parseBookingDates(checkInStr, checkOutStr string) (ti
 	return checkIn, checkOut, nil
 }
 
-func (hr *hotelRepository) getBookingByOrderID(orderID string) (*entity.Booking, error) {
-	var booking entity.Booking
-
-	result := hr.DB.Where("order_id = ?", orderID).First(&booking)
-
-	if result.Error != nil {
-		if result.Error.Error() == "record not found" {
-			return nil, fmt.Errorf("404 | Booking not found")
-		}
-
-		return nil, fmt.Errorf("500 | %v", result.Error)
-	}
-
-	return &booking, nil
-}
-
-func (hr *hotelRepository) validateBookingStatus(booking *entity.Booking) error {
-	if booking.BookingStatus != "pending" {
-		return fmt.Errorf("400 | Booking has been paid")
-	}
-
-	return nil
-}
-
 func (hr *hotelRepository) getUserByID(userID uint) (*entity.User, error) {
 	var user entity.User
 
@@ -193,71 +129,6 @@ func (hr *hotelRepository) getUserByID(userID uint) (*entity.User, error) {
 	}
 
 	return &user, nil
-}
-
-func (hr *hotelRepository) prepareMidtransPayload(payload entity.BookingPaymentPayload, booking *entity.Booking, user *entity.User) entity.MidtransPaymentPayload {
-	return entity.MidtransPaymentPayload{
-		PaymentType: "bank_transfer",
-		TransactionDetail: struct {
-			OrderID     string  `json:"order_id"`
-			GrossAmount float64 `json:"gross_amount"`
-		}{
-			OrderID:     payload.OrderID,
-			GrossAmount: booking.TotalPrice,
-		},
-		CustomerDetail: struct {
-			Email     string `json:"email"`
-			FirstName string `json:"first_name"`
-			LastName  string `json:"last_name"`
-			Phone     string `json:"phone"`
-		}{
-			Email:     user.Email,
-			FirstName: user.FirstName,
-			LastName:  user.LastName,
-			Phone:     user.PhoneNumber,
-		},
-		ItemDetails: []struct {
-			ID       string  `json:"id"`
-			Price    float64 `json:"price"`
-			Quantity int     `json:"quantity"`
-			Name     string  `json:"name"`
-		}{
-			{
-				ID:       payload.OrderID,
-				Price:    booking.TotalPrice,
-				Quantity: 1,
-				Name:     "Hotel Booking",
-			},
-		},
-		BankTransfer: struct {
-			Bank string `json:"bank"`
-		}{
-			Bank: payload.PaymentMethod,
-		},
-	}
-}
-
-func (hr *hotelRepository) createPaymentEntity(response *entity.MidtransResponse, orderID string, booking *entity.Booking) entity.Payment {
-	return entity.Payment{
-		PaymentID:       response.TransactionID,
-		OrderID:         orderID,
-		UserID:          booking.GuestID,
-		TotalAmount:     booking.TotalPrice,
-		TransactionType: "booking",
-		PaymentDate:     nil,
-		PaymentStatus:   "pending",
-		PaymentMethod:   response.PaymentType + " - " + response.VANumbers[0].Bank,
-	}
-}
-
-func (hr *hotelRepository) savePayment(payment entity.Payment) error {
-	result := hr.DB.Create(&payment)
-
-	if result.Error != nil {
-		return fmt.Errorf("500 | %v", result.Error)
-	}
-
-	return nil
 }
 
 func (hr *hotelRepository) getHotelByID(hotelID int) (*entity.Hotel, error) {

@@ -165,7 +165,9 @@ func (us *userService) TopUpBalance(c echo.Context) error {
 	return c.JSON(200, entity.ResponseOK{
 		Status:  200,
 		Message: "User balance topped up successfully",
-		Data:    response.VANumbers,
+		Data: map[string]interface{}{
+			"order_id": response.OrderID,
+		},
 	})
 }
 
@@ -251,12 +253,8 @@ func validateTopUpPayload(request entity.UserTopUpBalancePayload) error {
 		return fmt.Errorf("400 | amount is required")
 	}
 
-	if request.Amount < 500000.00 {
+	if request.Amount <= 500000.00 {
 		return fmt.Errorf("400 | top-up amount must be at least 500.000,00 IDR")
-	}
-
-	if request.BankTransfer == "" {
-		return fmt.Errorf("400 | bank transfer is required")
 	}
 
 	return nil

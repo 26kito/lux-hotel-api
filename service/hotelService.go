@@ -14,7 +14,6 @@ type HotelService interface {
 	GetHotelList(c echo.Context) error
 	GetHotelDetail(c echo.Context) error
 	Booking(c echo.Context) error
-	Payment(c echo.Context) error
 }
 
 type hotelService struct {
@@ -124,42 +123,6 @@ func (hs *hotelService) Booking(c echo.Context) error {
 			"check_in":     response.CheckIn,
 			"check_out":    response.CheckOut,
 			"total_price":  response.TotalPrice,
-		},
-	})
-}
-
-func (hs *hotelService) Payment(c echo.Context) error {
-	var payload entity.BookingPaymentPayload
-
-	if err := c.Bind(&payload); err != nil {
-		return c.JSON(400, entity.ResponseError{
-			Status:  400,
-			Message: "Invalid request",
-		})
-	}
-
-	response, err := hs.HotelRepository.Payment(payload)
-
-	if err != nil {
-		errCode, _ := strconv.Atoi(err.Error()[:3])
-		errMessage := err.Error()[6:]
-
-		return c.JSON(errCode, entity.ResponseError{
-			Status:  errCode,
-			Message: errMessage,
-		})
-	}
-
-	return c.JSON(200, entity.ResponseOK{
-		Status:  200,
-		Message: "Success",
-		Data: map[string]interface{}{
-			"transaction_id": response.TransactionID,
-			"status":         response.TransactionStatus,
-			"amount":         response.GrossAmount,
-			"payment_type":   response.PaymentType,
-			"bank":           response.VANumbers[0].Bank,
-			"va_number":      response.VANumbers[0].VANumber,
 		},
 	})
 }

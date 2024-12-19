@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"lux-hotel/entity"
-	"lux-hotel/utils"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -15,7 +14,7 @@ type UserRepository interface {
 	Register(entity.UserRegisterPayload) (*entity.User, error)
 	Login(entity.UserLoginPayload) (*entity.User, error)
 	GetBalance(int) (float64, error)
-	TopUpBalance(int, entity.UserTopUpBalancePayload) (*entity.MidtransResponse, error)
+	TopUpBalance(int, entity.UserTopUpBalancePayload) (*entity.TopUpTransaction, error)
 }
 
 type userRepository struct {
@@ -95,98 +94,25 @@ func (ur *userRepository) GetBalance(userID int) (float64, error) {
 	return user.Balance, nil
 }
 
-func (ur *userRepository) TopUpBalance(userID int, request entity.UserTopUpBalancePayload) (*entity.MidtransResponse, error) {
-	var user entity.User
-	var topUpTransaction entity.TopUpTransaction
-	var payment entity.Payment
-
-	result := ur.DB.Where("user_id = ?", userID).First(&user)
-
-	if result.Error != nil {
-		log.Println(result.Error)
-		return nil, fmt.Errorf("404 | user not found")
-	}
-
+func (ur *userRepository) TopUpBalance(userID int, request entity.UserTopUpBalancePayload) (*entity.TopUpTransaction, error) {
 	orderID := fmt.Sprintf("TPUP-%s", uuid.New().String())
 
-	topUpTransaction = entity.TopUpTransaction{
-		UserID:  user.UserID,
+	topup := ur.createTopupEntity(uint(userID), orderID, request.Amount)
+
+	insertTopup := ur.DB.Save(&topup)
+
+	if insertTopup.Error != nil {
+		log.Println(insertTopup.Error)
+		return nil, fmt.Errorf("500 | internal server error")
+	}
+
+	return &topup, nil
+}
+
+func (ur *userRepository) createTopupEntity(userID uint, orderID string, amount float64) entity.TopUpTransaction {
+	return entity.TopUpTransaction{
+		UserID:  userID,
 		OrderID: orderID,
-		Amount:  request.Amount,
+		Amount:  amount,
 	}
-
-	result = ur.DB.Save(&topUpTransaction)
-
-	if result.Error != nil {
-		log.Println(result.Error)
-		return nil, fmt.Errorf("500 | internal server error")
-	}
-
-	// Prepare the struct for Midtrans
-	payload := entity.MidtransPaymentPayload{
-		PaymentType: "bank_transfer",
-		TransactionDetail: struct {
-			OrderID     string  `json:"order_id"`
-			GrossAmount float64 `json:"gross_amount"`
-		}{
-			OrderID:     orderID,
-			GrossAmount: request.Amount,
-		},
-		CustomerDetail: struct {
-			Email     string `json:"email"`
-			FirstName string `json:"first_name"`
-			LastName  string `json:"last_name"`
-			Phone     string `json:"phone"`
-		}{
-			Email:     user.Email,
-			FirstName: user.FirstName,
-			LastName:  user.LastName,
-			Phone:     user.PhoneNumber,
-		},
-		ItemDetails: []struct {
-			ID       string  `json:"id"`
-			Price    float64 `json:"price"`
-			Quantity int     `json:"quantity"`
-			Name     string  `json:"name"`
-		}{
-			{
-				ID:       orderID,
-				Price:    request.Amount,
-				Quantity: 1,
-				Name:     "Top-up Balance",
-			},
-		},
-		BankTransfer: struct {
-			Bank string `json:"bank"`
-		}{
-			Bank: request.BankTransfer,
-		},
-	}
-
-	response, err := utils.MidtransPaymentHandler(payload)
-
-	if err != nil {
-		log.Println(err)
-		return nil, fmt.Errorf("500 | internal server error")
-	}
-
-	payment = entity.Payment{
-		PaymentID:       response.TransactionID,
-		OrderID:         orderID,
-		UserID:          user.UserID,
-		TotalAmount:     request.Amount,
-		TransactionType: "topup",
-		PaymentDate:     nil,
-		PaymentStatus:   response.TransactionStatus,
-		PaymentMethod:   response.PaymentType + " - " + response.VANumbers[0].Bank,
-	}
-
-	result = ur.DB.Save(&payment)
-
-	if result.Error != nil {
-		log.Println(result.Error)
-		return nil, fmt.Errorf("500 | internal server error")
-	}
-
-	return response, nil
 }

@@ -18,6 +18,8 @@ func Routes(DB *gorm.DB) {
 	hotelService := service.NewHotelService(hotelRepository)
 	midtransRepository := repository.NewMidtransRepository(DB)
 	midtransService := service.NewMidtransService(midtransRepository)
+	paymentRepository := repository.NewPaymentRepository(DB)
+	paymentService := service.NewPaymentService(paymentRepository)
 
 	api := e.Group("/api")
 
@@ -33,8 +35,9 @@ func Routes(DB *gorm.DB) {
 	api.POST("/hotel/:id/booking", hotelService.Booking, middleware.ValidateJWTMiddleware)
 
 	// Payment
-	api.POST("/hotel/order/payment", hotelService.Payment, middleware.ValidateJWTMiddleware)
+	api.POST("/order/payment", paymentService.Payment, middleware.ValidateJWTMiddleware)
 
+	// Midtrans
 	api.POST("/midtrans/callback", midtransService.HandleMidtransCallback)
 
 	e.Logger.Fatal(e.Start(":8080"))
