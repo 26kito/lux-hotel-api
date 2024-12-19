@@ -15,6 +15,7 @@ type UserRepository interface {
 	Login(entity.UserLoginPayload) (*entity.User, error)
 	GetBalance(int) (float64, error)
 	TopUpBalance(int, entity.UserTopUpBalancePayload) (*entity.TopUpTransaction, error)
+	GetBookHistory(int) ([]entity.BookingHistoryResponse, error)
 }
 
 type userRepository struct {
@@ -107,6 +108,24 @@ func (ur *userRepository) TopUpBalance(userID int, request entity.UserTopUpBalan
 	}
 
 	return &topup, nil
+}
+
+func (ur *userRepository) GetBookHistory(userID int) ([]entity.BookingHistoryResponse, error) {
+	var historyBook []entity.BookingHistoryResponse
+
+	result := ur.DB.Table("bookings").
+		Select("bookings.order_id, bookings.booking_code, hotels.name AS hotel_name, rooms.room_number, bookings.check_in, bookings.check_out, bookings.total_days, bookings.total_price, bookings.created_at AS booking_date, bookings.booking_status").
+		Joins("JOIN hotels ON bookings.hotel_id = hotels.id").
+		Joins("JOIN rooms ON bookings.room_id = rooms.id").
+		Where("bookings.guest_id = ?", userID).
+		Scan(&historyBook)
+
+	if result.Error != nil {
+		log.Println(result.Error)
+		return nil, fmt.Errorf("500 | internal server error")
+	}
+
+	return historyBook, nil
 }
 
 func (ur *userRepository) createTopupEntity(userID uint, orderID string, amount float64) entity.TopUpTransaction {

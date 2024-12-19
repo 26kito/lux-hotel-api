@@ -31,6 +31,7 @@ func Routes(DB *gorm.DB) {
 	api.POST("/users/login", userService.Login)
 	api.GET("/users/balance", userService.GetBalance, middleware.ValidateJWTMiddleware)
 	api.POST("/users/balance/top-up", userService.TopUpBalance, middleware.ValidateJWTMiddleware)
+	api.GET("/users/book/history", userService.GetBookHistory, middleware.ValidateJWTMiddleware)
 
 	// Hotel
 	api.GET("/hotel-list", hotelService.GetHotelList)

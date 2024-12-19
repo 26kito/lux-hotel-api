@@ -318,6 +318,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/users/book/history": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Fetches the booking history for the logged-in user based on the user ID extracted from the JWT token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "Get user booking history",
+                "responses": {
+                    "200": {
+                        "description": "User booking history retrieved successfully",
+                        "schema": {
+                            "$ref": "#/definitions/entity.ResponseOK"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/entity.ResponseError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/entity.ResponseError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/entity.ResponseError"
+                        }
+                    }
+                }
+            }
+        },
         "/api/users/login": {
             "post": {
                 "description": "Logs the user in by validating their credentials and returning a JWT token for authentication.",

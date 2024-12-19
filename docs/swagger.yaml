@@ -263,6 +263,36 @@ paths:
       summary: Top up the balance of the logged-in user
       tags:
       - user
+  /api/users/book/history:
+    get:
+      consumes:
+      - application/json
+      description: Fetches the booking history for the logged-in user based on the
+        user ID extracted from the JWT token.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User booking history retrieved successfully
+          schema:
+            $ref: '#/definitions/entity.ResponseOK'
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/entity.ResponseError'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/entity.ResponseError'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/entity.ResponseError'
+      security:
+      - ApiKeyAuth: []
+      summary: Get user booking history
+      tags:
+      - user
   /api/users/login:
     post:
       consumes:

@@ -18,6 +18,7 @@ type UserService interface {
 	Login(c echo.Context) error
 	GetBalance(c echo.Context) error
 	TopUpBalance(c echo.Context) error
+	GetBookHistory(c echo.Context) error
 }
 
 type userService struct {
@@ -217,6 +218,40 @@ func (us *userService) TopUpBalance(c echo.Context) error {
 		Data: map[string]interface{}{
 			"order_id": response.OrderID,
 		},
+	})
+}
+
+// GetBookHistory retrieves the booking history of the logged-in user.
+// @Summary Get user booking history
+// @Description Fetches the booking history for the logged-in user based on the user ID extracted from the JWT token.
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {object} entity.ResponseOK "User booking history retrieved successfully"
+// @Failure 400 {object} entity.ResponseError "Bad request"
+// @Failure 401 {object} entity.ResponseError "Unauthorized access"
+// @Failure 500 {object} entity.ResponseError "Internal server error"
+// @Router /api/users/book/history [get]
+func (us *userService) GetBookHistory(c echo.Context) error {
+	userID := c.Get("user").(jwt.MapClaims)["user_id"].(float64)
+
+	history, err := us.UserRepository.GetBookHistory(int(userID))
+
+	if err != nil {
+		errCode, _ := strconv.Atoi(err.Error()[:3])
+		errMessage := err.Error()[6:]
+
+		return c.JSON(errCode, entity.ResponseError{
+			Status:  errCode,
+			Message: errMessage,
+		})
+	}
+
+	return c.JSON(200, entity.ResponseOK{
+		Status:  200,
+		Message: "User history book retrieved successfully",
+		Data:    history,
 	})
 }
 

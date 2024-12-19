@@ -23,3 +23,16 @@ type BookingRequest struct {
 	CheckIn  string `json:"check_in"`
 	CheckOut string `json:"check_out"`
 }
+
+type BookingHistoryResponse struct {
+	OrderID       string  `json:"order_id"`
+	BookingCode   string  `json:"booking_code"`
+	HotelName     string  `json:"hotel_name"`
+	RoomNumber    string  `json:"room_number"`
+	CheckIn       string  `json:"check_in"`
+	CheckOut      string  `json:"check_out"`
+	TotalDays     int     `json:"total_days"`
+	TotalPrice    float64 `json:"total_price"`
+	BookingDate   string  `json:"booking_date"`
+	BookingStatus string  `json:"booking_status"`
+}
