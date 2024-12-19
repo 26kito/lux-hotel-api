@@ -59,7 +59,6 @@ func (hr *hotelRepository) Booking(userID, hotelID int, request entity.BookingRe
 		return nil, parseDateError
 	}
 
-	// Calculate the difference in days
 	if checkOut.Before(checkIn) {
 		return nil, fmt.Errorf("check-out date cannot be before check-in date")
 	}
@@ -77,6 +76,10 @@ func (hr *hotelRepository) Booking(userID, hotelID int, request entity.BookingRe
 	room, err := hr.getHotelRoom(uint(hotelID), request.RoomID)
 	if err != nil {
 		return nil, err
+	}
+
+	if room.Status == "occupied" {
+		return nil, fmt.Errorf("400 | Room is occupied")
 	}
 
 	// Get user
