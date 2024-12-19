@@ -41,9 +41,10 @@ func Routes(DB *gorm.DB) {
 	// Payment
 	api.POST("/order/payment", paymentService.Payment, middleware.ValidateJWTMiddleware)
 
-	// Midtrans
+	// Midtrans Callback
 	api.POST("/midtrans/callback", midtransService.HandleMidtransCallback)
 
 	api.GET("/swagger/*", echoSwagger.WrapHandler)
+
 	e.Logger.Fatal(e.Start(":8080"))
 }

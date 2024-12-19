@@ -3,6 +3,7 @@ package repository
 import (
 	"fmt"
 	"lux-hotel/entity"
+	"lux-hotel/utils"
 	"time"
 
 	"github.com/google/uuid"
@@ -87,6 +88,7 @@ func (hr *hotelRepository) Booking(userID, hotelID int, request entity.BookingRe
 
 	orderID := fmt.Sprintf("BKNG-%d%s", userID, uuid.New().String())
 	bookingCode := fmt.Sprintf("%s%d%d", time.Now().Format("20060102"), hotelID, request.RoomID)
+	room.Price = utils.AdjustPrice(room.Price, checkIn)
 	totalPrice := float64(totalDays) * room.Price
 
 	booking := hr.createBookingEntity(orderID, bookingCode, *user, *hotel, *room, checkIn, checkOut, totalDays, totalPrice)
