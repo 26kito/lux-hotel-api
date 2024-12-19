@@ -5,12 +5,13 @@ import (
 	"lux-hotel/entity"
 	"lux-hotel/utils"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 )
 
 type PaymentRepository interface {
-	Payment(entity.PaymentPayload) (*entity.MidtransResponse, error)
+	Payment(entity.PaymentPayload) (*entity.PaymentResponse, error)
 }
 
 type paymentRepository struct {
@@ -21,8 +22,8 @@ func NewPaymentRepository(db *gorm.DB) PaymentRepository {
 	return &paymentRepository{DB: db}
 }
 
-func (pr *paymentRepository) Payment(payload entity.PaymentPayload) (*entity.MidtransResponse, error) {
-	var response *entity.MidtransResponse
+func (pr *paymentRepository) Payment(payload entity.PaymentPayload) (*entity.PaymentResponse, error) {
+	var response *entity.PaymentResponse
 	var err error
 
 	// Determine transaction type by OrderID prefix
@@ -41,82 +42,155 @@ func (pr *paymentRepository) Payment(payload entity.PaymentPayload) (*entity.Mid
 	return response, nil
 }
 
-func (pr *paymentRepository) handleTopUpPayment(payload entity.PaymentPayload) (*entity.MidtransResponse, error) {
+func (pr *paymentRepository) handleTopUpPayment(payload entity.PaymentPayload) (*entity.PaymentResponse, error) {
+	// Fetch the top-up transaction details by order ID
 	topup, topupErr := pr.getTopupTransactionByOrderID(payload.OrderID)
 	if topupErr != nil {
 		return nil, topupErr
 	}
 
-	transaction, err := utils.MidtransTransactionStatusHandler(payload.OrderID)
-	if err != nil {
-		return nil, fmt.Errorf("500 | %v", err)
+	// Check the transaction status from Midtrans
+	transaction, transactionErr := utils.MidtransTransactionStatusHandler(payload.OrderID)
+	if transactionErr != nil {
+		return nil, fmt.Errorf("500 | %v", transactionErr)
 	}
 
+	// Return pending transaction details
 	if transaction.TransactionStatus == "pending" {
-		return transaction, nil
+		return &entity.PaymentResponse{
+			TransactionID:     transaction.TransactionID,
+			TransactionStatus: transaction.TransactionStatus,
+			Amount:            transaction.GrossAmount,
+			PaymentType:       transaction.PaymentType,
+			Bank:              transaction.VANumbers[0].Bank,
+			VANumber:          transaction.VANumbers[0].VANumber,
+		}, nil
 	}
 
+	// Fetch the user associated with the top-up
 	user, userErr := pr.getUserByID(topup.UserID)
-
 	if userErr != nil {
 		return nil, userErr
 	}
 
+	// Prepare the Midtrans payload for the top-up
 	midtransPayload := pr.prepareMidtransPayload(payload, user, topup.Amount, "topup balance")
 
+	// Handle the payment via Midtrans
 	response, responseErr := utils.MidtransPaymentHandler(midtransPayload)
-
 	if responseErr != nil {
 		return nil, fmt.Errorf("500 | %v", responseErr)
 	}
 
-	payment := pr.createPaymentEntity(response, payload.OrderID, user.UserID, topup.Amount, "topup balance")
+	transactionID := fmt.Sprintf("TRX-%d", time.Now().Unix())
+	paymentMethod := response.PaymentType + " - " + response.VANumbers[0].Bank
 
+	// Create and save the payment entity
+	payment := pr.createPaymentEntity(transactionID, payload.OrderID, user.UserID, topup.Amount, "topup balance", nil, "pending", paymentMethod)
 	if err := pr.savePayment(payment); err != nil {
 		return nil, err
 	}
 
-	return response, nil
+	// Return PaymentResponse
+	return &entity.PaymentResponse{
+		TransactionID:     payment.PaymentID,
+		TransactionStatus: payment.PaymentStatus,
+		Amount:            payment.TotalAmount,
+		PaymentType:       payment.TransactionType,
+		Bank:              response.VANumbers[0].Bank,
+		VANumber:          response.VANumbers[0].VANumber,
+	}, nil
 }
 
-func (pr *paymentRepository) handleBookingPayment(payload entity.PaymentPayload) (*entity.MidtransResponse, error) {
+func (pr *paymentRepository) handleBookingPayment(payload entity.PaymentPayload) (*entity.PaymentResponse, error) {
+	// Fetch booking details by order ID
 	booking, bookingErr := pr.getBookingByOrderID(payload.OrderID)
 	if bookingErr != nil {
 		return nil, bookingErr
 	}
 
+	// Validate booking status
 	if err := pr.validateBookingStatus(booking); err != nil {
 		return nil, err
 	}
 
-	transaction, err := utils.MidtransTransactionStatusHandler(payload.OrderID)
-	if err != nil {
-		return nil, fmt.Errorf("500 | %v", err)
-	}
-
-	if transaction.TransactionStatus == "pending" {
-		return transaction, nil
-	}
-
+	// Retrieve user details
 	user, err := pr.getUserByID(booking.GuestID)
 	if err != nil {
 		return nil, err
 	}
 
+	switch payload.PaymentMethod {
+	case "wallet":
+		return pr.handleWalletPayment(payload, booking, user)
+	default:
+		return pr.handleBankPayment(payload, booking, user)
+	}
+}
+
+func (pr *paymentRepository) handleWalletPayment(payload entity.PaymentPayload, booking *entity.Booking, user *entity.User) (*entity.PaymentResponse, error) {
+	// Ensure user balance is sufficient
+	if user.Balance < booking.TotalPrice {
+		return nil, fmt.Errorf("400 | Insufficient balance")
+	}
+
+	// Deduct balance and save
+	user.Balance -= booking.TotalPrice
+	if err := pr.DB.Save(&user).Error; err != nil {
+		return nil, fmt.Errorf("500 | Failed to update user balance: %v", err)
+	}
+
+	// Update booking status to "settlement"
+	booking.BookingStatus = "settlement"
+	if err := pr.DB.Save(&booking).Error; err != nil {
+		return nil, fmt.Errorf("500 | Failed to update booking status: %v", err)
+	}
+
+	transactionID := fmt.Sprintf("TRX-%d", time.Now().Unix())
+	paymentDate, _ := time.Parse("2006-01-02", time.Now().Format("2006-01-02"))
+	// Create and save payment entity
+	payment := pr.createPaymentEntity(transactionID, payload.OrderID, user.UserID, booking.TotalPrice, "hotel booking", &paymentDate, "settlement", payload.PaymentMethod)
+	payment.PaymentStatus = "settlement"
+	payment.PaymentMethod = "wallet"
+
+	if err := pr.savePayment(payment); err != nil {
+		return nil, fmt.Errorf("500 | Failed to save payment record: %v", err)
+	}
+
+	// Return PaymentResponse
+	return &entity.PaymentResponse{
+		TransactionID:     payment.PaymentID,
+		TransactionStatus: payment.PaymentStatus,
+		Amount:            payment.TotalAmount,
+		PaymentType:       payment.TransactionType,
+	}, nil
+}
+
+func (pr *paymentRepository) handleBankPayment(payload entity.PaymentPayload, booking *entity.Booking, user *entity.User) (*entity.PaymentResponse, error) {
 	midtransPayload := pr.prepareMidtransPayload(payload, user, booking.TotalPrice, "hotel booking")
 	response, err := utils.MidtransPaymentHandler(midtransPayload)
-
 	if err != nil {
 		return nil, fmt.Errorf("500 | %v", err)
 	}
 
-	payment := pr.createPaymentEntity(response, payload.OrderID, user.UserID, booking.TotalPrice, "hotel booking")
+	paymentMethod := response.PaymentType + " - " + response.VANumbers[0].Bank
 
+	transactionID := fmt.Sprintf("TRX-%d", time.Now().Unix())
+	// Create and save payment entity
+	payment := pr.createPaymentEntity(transactionID, payload.OrderID, user.UserID, booking.TotalPrice, "hotel booking", nil, "pending", paymentMethod)
 	if err := pr.savePayment(payment); err != nil {
 		return nil, err
 	}
 
-	return response, nil
+	// Return PaymentResponse
+	return &entity.PaymentResponse{
+		TransactionID:     payment.PaymentID,
+		TransactionStatus: payment.PaymentStatus,
+		Amount:            payment.TotalAmount,
+		PaymentType:       payment.TransactionType,
+		Bank:              response.VANumbers[0].Bank,
+		VANumber:          response.VANumbers[0].VANumber,
+	}, nil
 }
 
 func (pr *paymentRepository) getBookingByOrderID(orderID string) (*entity.Booking, error) {
@@ -217,16 +291,16 @@ func (pr *paymentRepository) prepareMidtransPayload(payload entity.PaymentPayloa
 	}
 }
 
-func (pr *paymentRepository) createPaymentEntity(response *entity.MidtransResponse, orderID string, userID uint, amount float64, transactionType string) entity.Payment {
+func (pr *paymentRepository) createPaymentEntity(transactionID string, orderID string, userID uint, amount float64, transactionType string, paymentDate *time.Time, paymentStatus string, paymentMethod string) entity.Payment {
 	return entity.Payment{
-		PaymentID:       response.TransactionID,
+		PaymentID:       transactionID,
 		OrderID:         orderID,
 		UserID:          userID,
 		TotalAmount:     amount,
 		TransactionType: transactionType,
-		PaymentDate:     nil,
-		PaymentStatus:   "pending",
-		PaymentMethod:   response.PaymentType + " - " + response.VANumbers[0].Bank,
+		PaymentDate:     paymentDate,
+		PaymentStatus:   paymentStatus,
+		PaymentMethod:   paymentMethod,
 	}
 }
 

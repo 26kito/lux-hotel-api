@@ -45,13 +45,6 @@ func (ps *paymentService) Payment(c echo.Context) error {
 	return c.JSON(200, entity.ResponseOK{
 		Status:  200,
 		Message: "Success",
-		Data: map[string]interface{}{
-			"transaction_id": response.TransactionID,
-			"status":         response.TransactionStatus,
-			"amount":         response.GrossAmount,
-			"payment_type":   response.PaymentType,
-			"bank":           response.VANumbers[0].Bank,
-			"va_number":      response.VANumbers[0].VANumber,
-		},
+		Data:    response,
 	})
 }

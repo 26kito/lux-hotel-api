@@ -20,3 +20,12 @@ type PaymentPayload struct {
 	OrderID       string `json:"order_id"`
 	PaymentMethod string `json:"payment_method"`
 }
+
+type PaymentResponse struct {
+	TransactionID     string  `json:"transaction_id"`
+	TransactionStatus string  `json:"transaction_status"`
+	Amount            float64 `json:"amount"`
+	PaymentType       string  `json:"payment_type"`
+	Bank              string  `json:"bank,omitempty"`
+	VANumber          string  `json:"va_number,omitempty"`
+}
