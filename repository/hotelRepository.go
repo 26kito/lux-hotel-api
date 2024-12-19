@@ -60,8 +60,8 @@ func (hr *hotelRepository) Booking(userID, hotelID int, request entity.BookingRe
 		return nil, parseDateError
 	}
 
-	if checkOut.Before(checkIn) {
-		return nil, fmt.Errorf("check-out date cannot be before check-in date")
+	if validateDateErr := hr.validateDate(checkIn, checkOut); validateDateErr != nil {
+		return nil, validateDateErr
 	}
 
 	// Total days is the difference in time divided by 24 hours
@@ -114,6 +114,18 @@ func (hr *hotelRepository) parseBookingDates(checkInStr, checkOutStr string) (ti
 	}
 
 	return checkIn, checkOut, nil
+}
+
+func (hr *hotelRepository) validateDate(checkIn, checkOut time.Time) error {
+	if checkOut.Before(checkIn) {
+		return fmt.Errorf("400 | check-out date cannot be before check-in date")
+	}
+
+	if checkIn.Before(time.Now()) {
+		return fmt.Errorf("400 | check-in date cannot be before today")
+	}
+
+	return nil
 }
 
 func (hr *hotelRepository) getUserByID(userID uint) (*entity.User, error) {
