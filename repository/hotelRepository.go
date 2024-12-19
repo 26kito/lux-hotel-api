@@ -54,19 +54,11 @@ func (hr *hotelRepository) GetHotelDetail(id int) (entity.Hotel, error) {
 }
 
 func (hr *hotelRepository) Booking(userID, hotelID int, request entity.BookingRequest) (*entity.Booking, error) {
-	var hotel entity.Hotel
-	var room entity.Room
-	var user entity.User
+	// Parse checkin and checkout
+	checkIn, checkOut, parseDateError := hr.parseBookingDates(request.CheckIn, request.CheckOut)
 
-	// Parse the CheckIn and CheckOut strings into time.Time
-	checkIn, err := time.Parse("2006-01-02", request.CheckIn)
-	if err != nil {
-		return nil, fmt.Errorf("invalid check-in date format")
-	}
-
-	checkOut, err := time.Parse("2006-01-02", request.CheckOut)
-	if err != nil {
-		return nil, fmt.Errorf("invalid check-out date format")
+	if parseDateError != nil {
+		return nil, parseDateError
 	}
 
 	// Calculate the difference in days
@@ -77,67 +69,96 @@ func (hr *hotelRepository) Booking(userID, hotelID int, request entity.BookingRe
 	// Total days is the difference in time divided by 24 hours
 	totalDays := int(checkOut.Sub(checkIn).Hours() / 24)
 
-	result := hr.DB.First(&hotel, hotelID)
-
-	if result.Error != nil {
-		if result.Error.Error() == "record not found" {
-			return nil, fmt.Errorf("404 | Hotel not found")
-		}
-
-		return nil, fmt.Errorf("500 | %v", result.Error)
+	// Get hotel
+	hotel, err := hr.getHotelByID(hotelID)
+	if err != nil {
+		return nil, err
 	}
 
-	result = hr.DB.Where("hotel_id = ? AND id = ?", hotelID, request.RoomID).First(&room)
-
-	if result.Error != nil {
-		if result.Error.Error() == "record not found" {
-			return nil, fmt.Errorf("404 | Room not found")
-		}
-
-		return nil, fmt.Errorf("500 | %v", result.Error)
+	// Get room
+	room, err := hr.getHotelRoom(uint(hotelID), request.RoomID)
+	if err != nil {
+		return nil, err
 	}
 
-	result = hr.DB.First(&user, userID)
+	// Get user
+	user, err := hr.getUserByID(uint(userID))
 
-	if result.Error != nil {
-		if result.Error.Error() == "record not found" {
-			return nil, fmt.Errorf("404 | User not found")
-		}
-
-		return nil, fmt.Errorf("500 | %v", result.Error)
+	if err != nil {
+		return nil, err
 	}
 
 	orderID := fmt.Sprintf("BKNG-%d%s", userID, uuid.New().String())
 	bookingCode := fmt.Sprintf("%s%d%d", time.Now().Format("20060102"), hotelID, request.RoomID)
+	totalPrice := float64(totalDays) * room.Price
 
-	booking := entity.Booking{
-		OrderID:       orderID,
-		BookingCode:   bookingCode,
-		GuestID:       user.UserID,
-		HotelID:       hotel.ID,
-		RoomID:        request.RoomID,
-		CheckIn:       checkIn.Format("2006-01-02"),
-		CheckOut:      checkOut.Format("2006-01-02"),
-		TotalDays:     totalDays,
-		TotalPrice:    float64(totalDays) * room.Price,
-		BookingStatus: "pending",
-	}
-
-	result = hr.DB.Create(&booking)
-
-	if result.Error != nil {
-		return nil, fmt.Errorf("500 | %v", result.Error)
-	}
+	booking := hr.createBookingEntity(orderID, bookingCode, *user, *hotel, *room, checkIn, checkOut, totalDays, totalPrice)
 
 	return &booking, nil
 }
 
 func (hr *hotelRepository) Payment(payload entity.BookingPaymentPayload) (*entity.MidtransResponse, error) {
-	var user entity.User
-	var booking entity.Booking
-	var payment entity.Payment
+	booking, bookingErr := hr.getBookingByOrderID(payload.OrderID)
 
-	result := hr.DB.Where("order_id = ?", payload.OrderID).First(&booking)
+	if bookingErr != nil {
+		return nil, bookingErr
+	}
+
+	if bookingErr := hr.validateBookingStatus(booking); bookingErr != nil {
+		return nil, bookingErr
+	}
+
+	transaction, transactionErr := utils.MidtransTransactionStatusHandler(payload.OrderID)
+
+	if transactionErr != nil {
+		return nil, fmt.Errorf("500 | %v", transactionErr)
+	}
+
+	if transaction.TransactionStatus == "pending" {
+		return transaction, nil
+	}
+
+	user, userErr := hr.getUserByID(booking.GuestID)
+
+	if userErr != nil {
+		return nil, userErr
+	}
+
+	midtransPayload := hr.prepareMidtransPayload(payload, booking, user)
+
+	response, responseErr := utils.MidtransPaymentHandler(midtransPayload)
+
+	if responseErr != nil {
+		return nil, fmt.Errorf("500 | %v", responseErr)
+	}
+
+	payment := hr.createPaymentEntity(response, payload.OrderID, booking)
+
+	if err := hr.savePayment(payment); err != nil {
+		return nil, err
+	}
+
+	return response, nil
+}
+
+func (hr *hotelRepository) parseBookingDates(checkInStr, checkOutStr string) (time.Time, time.Time, error) {
+	checkIn, err := time.Parse("2006-01-02", checkInStr)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("500 | invalid check-in date format")
+	}
+
+	checkOut, err := time.Parse("2006-01-02", checkOutStr)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("500 | invalid check-out date format")
+	}
+
+	return checkIn, checkOut, nil
+}
+
+func (hr *hotelRepository) getBookingByOrderID(orderID string) (*entity.Booking, error) {
+	var booking entity.Booking
+
+	result := hr.DB.Where("order_id = ?", orderID).First(&booking)
 
 	if result.Error != nil {
 		if result.Error.Error() == "record not found" {
@@ -147,21 +168,21 @@ func (hr *hotelRepository) Payment(payload entity.BookingPaymentPayload) (*entit
 		return nil, fmt.Errorf("500 | %v", result.Error)
 	}
 
+	return &booking, nil
+}
+
+func (hr *hotelRepository) validateBookingStatus(booking *entity.Booking) error {
 	if booking.BookingStatus != "pending" {
-		return nil, fmt.Errorf("400 | Booking has been paid")
+		return fmt.Errorf("400 | Booking has been paid")
 	}
 
-	transaction, err := utils.MidtransTransactionStatusHandler(payload.OrderID)
+	return nil
+}
 
-	if err != nil {
-		return nil, fmt.Errorf("500 | %v", err)
-	}
+func (hr *hotelRepository) getUserByID(userID uint) (*entity.User, error) {
+	var user entity.User
 
-	if transaction.TransactionStatus == "pending" {
-		return transaction, nil
-	}
-
-	result = hr.DB.Where("user_id = ?", booking.GuestID).First(&user)
+	result := hr.DB.Where("user_id = ?", userID).First(&user)
 
 	if result.Error != nil {
 		if result.Error.Error() == "record not found" {
@@ -171,8 +192,11 @@ func (hr *hotelRepository) Payment(payload entity.BookingPaymentPayload) (*entit
 		return nil, fmt.Errorf("500 | %v", result.Error)
 	}
 
-	// Prepare the struct for Midtrans
-	midtransPayload := entity.MidtransPaymentPayload{
+	return &user, nil
+}
+
+func (hr *hotelRepository) prepareMidtransPayload(payload entity.BookingPaymentPayload, booking *entity.Booking, user *entity.User) entity.MidtransPaymentPayload {
+	return entity.MidtransPaymentPayload{
 		PaymentType: "bank_transfer",
 		TransactionDetail: struct {
 			OrderID     string  `json:"order_id"`
@@ -211,16 +235,12 @@ func (hr *hotelRepository) Payment(payload entity.BookingPaymentPayload) (*entit
 			Bank: payload.PaymentMethod,
 		},
 	}
+}
 
-	response, err := utils.MidtransPaymentHandler(midtransPayload)
-
-	if err != nil {
-		return nil, fmt.Errorf("500 | %v", err)
-	}
-
-	payment = entity.Payment{
+func (hr *hotelRepository) createPaymentEntity(response *entity.MidtransResponse, orderID string, booking *entity.Booking) entity.Payment {
+	return entity.Payment{
 		PaymentID:       response.TransactionID,
-		OrderID:         payload.OrderID,
+		OrderID:         orderID,
 		UserID:          booking.GuestID,
 		TotalAmount:     booking.TotalPrice,
 		TransactionType: "booking",
@@ -228,12 +248,61 @@ func (hr *hotelRepository) Payment(payload entity.BookingPaymentPayload) (*entit
 		PaymentStatus:   "pending",
 		PaymentMethod:   response.PaymentType + " - " + response.VANumbers[0].Bank,
 	}
+}
 
-	result = hr.DB.Create(&payment)
+func (hr *hotelRepository) savePayment(payment entity.Payment) error {
+	result := hr.DB.Create(&payment)
 
 	if result.Error != nil {
+		return fmt.Errorf("500 | %v", result.Error)
+	}
+
+	return nil
+}
+
+func (hr *hotelRepository) getHotelByID(hotelID int) (*entity.Hotel, error) {
+	var hotel entity.Hotel
+
+	result := hr.DB.First(&hotel, hotelID)
+
+	if result.Error != nil {
+		if result.Error.Error() == "record not found" {
+			return nil, fmt.Errorf("404 | Hotel not found")
+		}
+
 		return nil, fmt.Errorf("500 | %v", result.Error)
 	}
 
-	return response, nil
+	return &hotel, nil
+}
+
+func (hr *hotelRepository) getHotelRoom(hotelID, roomID uint) (*entity.Room, error) {
+	var room entity.Room
+
+	result := hr.DB.Where("hotel_id = ? AND id = ?", hotelID, roomID).First(&room)
+
+	if result.Error != nil {
+		if result.Error.Error() == "record not found" {
+			return nil, fmt.Errorf("404 | Room not found")
+		}
+
+		return nil, fmt.Errorf("500 | %v", result.Error)
+	}
+
+	return &room, nil
+}
+
+func (hr *hotelRepository) createBookingEntity(orderID string, bookingCode string, user entity.User, hotel entity.Hotel, room entity.Room, checkIn time.Time, checkOut time.Time, totalDays int, totalPrice float64) entity.Booking {
+	return entity.Booking{
+		OrderID:       orderID,
+		BookingCode:   bookingCode,
+		GuestID:       user.UserID,
+		HotelID:       hotel.ID,
+		RoomID:        room.ID,
+		CheckIn:       checkIn.Format("2006-01-02"),
+		CheckOut:      checkOut.Format("2006-01-02"),
+		TotalDays:     totalDays,
+		TotalPrice:    totalPrice,
+		BookingStatus: "pending",
+	}
 }
