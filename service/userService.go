@@ -28,6 +28,18 @@ func NewUserService(userRepository repository.UserRepository) UserService {
 	return &userService{UserRepository: userRepository}
 }
 
+// Register handles user registration.
+// @Summary Register a new user
+// @Description Registers a new user in the system. It validates the input, checks for errors, and stores the user data in the database.
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param user body entity.UserRegisterPayload true "User registration data"
+// @Success 201 {object} entity.ResponseOK "User successfully registered"
+// @Failure 400 {object} entity.ResponseError "Invalid registration data"
+// @Failure 409 {object} entity.ResponseError "Email already exists"
+// @Failure 500 {object} entity.ResponseError "Internal server error"
+// @Router /api/users/register [post]
 func (us *userService) Register(c echo.Context) error {
 	var request entity.UserRegisterPayload
 
@@ -62,6 +74,18 @@ func (us *userService) Register(c echo.Context) error {
 	})
 }
 
+// Login handles user login and returns a JWT token.
+// @Summary Login a user and return a JWT token
+// @Description Logs the user in by validating their credentials and returning a JWT token for authentication.
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param user body entity.UserLoginPayload true "User login data"
+// @Success 200 {object} entity.ResponseOK "User logged in successfully"
+// @Failure 400 {object} entity.ResponseError "Invalid login credentials"
+// @Failure 401 {object} entity.ResponseError "Unauthorized access"
+// @Failure 500 {object} entity.ResponseError "Internal server error"
+// @Router /api/users/login [post]
 func (us *userService) Login(c echo.Context) error {
 	var request entity.UserLoginPayload
 
@@ -109,6 +133,18 @@ func (us *userService) Login(c echo.Context) error {
 	})
 }
 
+// GetBalance retrieves the current balance of the logged-in user.
+// @Summary Get the balance of the logged-in user
+// @Description Retrieves the current balance of the user from the database based on the user ID obtained from the JWT token.
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {object} entity.ResponseOK "User balance retrieved successfully"
+// @Failure 400 {object} entity.ResponseError "Bad request"
+// @Failure 401 {object} entity.ResponseError "Unauthorized access"
+// @Failure 500 {object} entity.ResponseError "Internal server error"
+// @Router /api/users/balance [get]
 func (us *userService) GetBalance(c echo.Context) error {
 	userID := c.Get("user").(jwt.MapClaims)["user_id"].(float64)
 
@@ -133,6 +169,19 @@ func (us *userService) GetBalance(c echo.Context) error {
 	})
 }
 
+// TopUpBalance allows the logged-in user to top up their balance.
+// @Summary Top up the balance of the logged-in user
+// @Description Allows the user to top up their balance by providing the amount and other relevant information. The request must include a valid JWT token for authentication.
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param user body entity.UserTopUpBalancePayload true "User top-up balance data"
+// @Success 200 {object} entity.ResponseOK "User balance topped up successfully"
+// @Failure 400 {object} entity.ResponseError "Invalid top-up data"
+// @Failure 401 {object} entity.ResponseError "Unauthorized access"
+// @Failure 500 {object} entity.ResponseError "Internal server error"
+// @Router /api/users/balance/top-up [post]
 func (us *userService) TopUpBalance(c echo.Context) error {
 	userID := c.Get("user").(jwt.MapClaims)["user_id"].(float64)
 

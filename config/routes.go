@@ -5,7 +5,10 @@ import (
 	"lux-hotel/repository"
 	"lux-hotel/service"
 
+	_ "lux-hotel/docs"
+
 	"github.com/labstack/echo/v4"
+	echoSwagger "github.com/swaggo/echo-swagger"
 	"gorm.io/gorm"
 )
 
@@ -40,5 +43,6 @@ func Routes(DB *gorm.DB) {
 	// Midtrans
 	api.POST("/midtrans/callback", midtransService.HandleMidtransCallback)
 
+	api.GET("/swagger/*", echoSwagger.WrapHandler)
 	e.Logger.Fatal(e.Start(":8080"))
 }

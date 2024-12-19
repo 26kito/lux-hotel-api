@@ -24,6 +24,15 @@ func NewHotelService(hotelRepository repository.HotelRepository) HotelService {
 	return &hotelService{HotelRepository: hotelRepository}
 }
 
+// GetHotelList retrieves the list of hotels.
+// @Summary Get a list of hotels
+// @Description Fetches all hotels available in the system and returns them.
+// @Tags hotel
+// @Accept json
+// @Produce json
+// @Success 200 {object} entity.ResponseOK "Successfully retrieved hotel list"
+// @Failure 500 {object} entity.ResponseError "Internal server error"
+// @Router /api/hotel-list [get]
 func (hs *hotelService) GetHotelList(c echo.Context) error {
 	hotels, err := hs.HotelRepository.GetHotelList()
 
@@ -44,6 +53,18 @@ func (hs *hotelService) GetHotelList(c echo.Context) error {
 	})
 }
 
+// GetHotelDetail retrieves the details of a specific hotel.
+// @Summary Get details of a specific hotel
+// @Description Fetches the details of a hotel by its ID and returns the hotel information.
+// @Tags hotel
+// @Accept json
+// @Produce json
+// @Param id path int true "Hotel ID"
+// @Success 200 {object} entity.ResponseOK "Successfully retrieved hotel details"
+// @Failure 400 {object} entity.ResponseError "Invalid ID"
+// @Failure 404 {object} entity.ResponseError "Hotel not found"
+// @Failure 500 {object} entity.ResponseError "Internal server error"
+// @Router /api/hotel/{id} [get]
 func (hs *hotelService) GetHotelDetail(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 
@@ -73,6 +94,20 @@ func (hs *hotelService) GetHotelDetail(c echo.Context) error {
 	})
 }
 
+// Booking handles hotel room booking for a user.
+// @Summary Book a room in a hotel
+// @Description Allows a user to book a room in a specified hotel. Requires a valid JWT token for authentication and hotel ID in the URL.
+// @Tags hotel
+// @Accept json
+// @Produce json
+// @Param id path int true "Hotel ID"
+// @Param booking_request body entity.BookingRequest true "Booking details"
+// @Security ApiKeyAuth
+// @Success 200 {object} entity.ResponseOK "Room booked successfully"
+// @Failure 400 {object} entity.ResponseError "Invalid ID or Invalid request"
+// @Failure 401 {object} entity.ResponseError "Unauthorized access"
+// @Failure 500 {object} entity.ResponseError "Internal server error"
+// @Router /api/hotel/{id}/booking [post]
 func (hs *hotelService) Booking(c echo.Context) error {
 	userID := c.Get("user").(jwt.MapClaims)["user_id"].(float64)
 	hotelID, err := strconv.Atoi(c.Param("id"))

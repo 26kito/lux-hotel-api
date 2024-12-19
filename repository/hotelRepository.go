@@ -78,10 +78,6 @@ func (hr *hotelRepository) Booking(userID, hotelID int, request entity.BookingRe
 		return nil, err
 	}
 
-	if room.Status == "occupied" {
-		return nil, fmt.Errorf("400 | Room is occupied")
-	}
-
 	// Get user
 	user, err := hr.getUserByID(uint(userID))
 
@@ -161,6 +157,10 @@ func (hr *hotelRepository) getHotelRoom(hotelID, roomID uint) (*entity.Room, err
 		}
 
 		return nil, fmt.Errorf("500 | %v", result.Error)
+	}
+
+	if room.Status == "occupied" {
+		return nil, fmt.Errorf("400 | Room is occupied")
 	}
 
 	return &room, nil

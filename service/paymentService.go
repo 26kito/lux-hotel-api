@@ -20,6 +20,19 @@ func NewPaymentService(paymentRepository repository.PaymentRepository) PaymentSe
 	return &paymentService{PaymentRepository: paymentRepository}
 }
 
+// Payment processes a payment order for a user.
+// @Summary Process a payment order
+// @Description Processes a payment order, requiring a valid JWT token for authentication. The request body should contain payment details.
+// @Tags payment
+// @Accept json
+// @Produce json
+// @Param payment_request body entity.PaymentPayload true "Payment details"
+// @Security ApiKeyAuth
+// @Success 200 {object} entity.ResponseOK "Payment processed successfully"
+// @Failure 400 {object} entity.ResponseError "Invalid request"
+// @Failure 401 {object} entity.ResponseError "Unauthorized access"
+// @Failure 500 {object} entity.ResponseError "Internal server error"
+// @Router /api/order/payment [post]
 func (ps *paymentService) Payment(c echo.Context) error {
 	var payload entity.PaymentPayload
 
