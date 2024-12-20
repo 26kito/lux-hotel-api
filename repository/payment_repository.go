@@ -49,6 +49,10 @@ func (pr *paymentRepository) handleTopUpPayment(payload entity.PaymentPayload) (
 		return nil, topupErr
 	}
 
+	if topup.TransactionStatus == "cancel" || topup.TransactionStatus == "failed" {
+		return nil, fmt.Errorf("400 | Top-up transaction has been %s", topup.TransactionStatus)
+	}
+
 	// Check the transaction status from Midtrans
 	transaction, transactionErr := utils.MidtransTransactionStatusHandler(payload.OrderID)
 	if transactionErr != nil {
@@ -60,7 +64,7 @@ func (pr *paymentRepository) handleTopUpPayment(payload entity.PaymentPayload) (
 		return &entity.PaymentResponse{
 			TransactionID:     transaction.TransactionID,
 			TransactionStatus: transaction.TransactionStatus,
-			Amount:            transaction.GrossAmount,
+			Amount:            utils.StringToFloat64(transaction.GrossAmount),
 			PaymentType:       transaction.PaymentType,
 			Bank:              transaction.VANumbers[0].Bank,
 			VANumber:          transaction.VANumbers[0].VANumber,
@@ -253,11 +257,11 @@ func (pr *paymentRepository) prepareMidtransPayload(payload entity.PaymentPayloa
 	return entity.MidtransPaymentPayload{
 		PaymentType: "bank_transfer",
 		TransactionDetail: struct {
-			OrderID     string  `json:"order_id"`
-			GrossAmount float64 `json:"gross_amount"`
+			OrderID     string `json:"order_id"`
+			GrossAmount string `json:"gross_amount"`
 		}{
 			OrderID:     payload.OrderID,
-			GrossAmount: amount,
+			GrossAmount: fmt.Sprintf("%.2f", amount),
 		},
 		CustomerDetail: struct {
 			Email     string `json:"email"`
@@ -271,14 +275,14 @@ func (pr *paymentRepository) prepareMidtransPayload(payload entity.PaymentPayloa
 			Phone:     user.PhoneNumber,
 		},
 		ItemDetails: []struct {
-			ID       string  `json:"id"`
-			Price    float64 `json:"price"`
-			Quantity int     `json:"quantity"`
-			Name     string  `json:"name"`
+			ID       string `json:"id"`
+			Price    string `json:"price"`
+			Quantity int    `json:"quantity"`
+			Name     string `json:"name"`
 		}{
 			{
 				ID:       payload.OrderID,
-				Price:    amount,
+				Price:    fmt.Sprintf("%.2f", amount),
 				Quantity: 1,
 				Name:     txName,
 			},
