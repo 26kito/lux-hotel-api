@@ -37,6 +37,5 @@ type TopUpTransaction struct {
 }
 
 type UserTopUpBalancePayload struct {
-	Amount       float64 `json:"amount" form:"amount" query:"amount"`
-	BankTransfer string  `json:"bank_transfer" form:"bank_transfer" query:"bank_transfer"`
+	Amount float64 `json:"amount" form:"amount" query:"amount"`
 }
