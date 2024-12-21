@@ -11,7 +11,7 @@ import (
 )
 
 type PaymentRepository interface {
-	Payment(entity.PaymentPayload) (*entity.PaymentResponse, error)
+	Payment(int, entity.PaymentPayload) (*entity.PaymentResponse, error)
 }
 
 type paymentRepository struct {
@@ -22,15 +22,15 @@ func NewPaymentRepository(db *gorm.DB) PaymentRepository {
 	return &paymentRepository{DB: db}
 }
 
-func (pr *paymentRepository) Payment(payload entity.PaymentPayload) (*entity.PaymentResponse, error) {
+func (pr *paymentRepository) Payment(userID int, payload entity.PaymentPayload) (*entity.PaymentResponse, error) {
 	var response *entity.PaymentResponse
 	var err error
 
 	// Determine transaction type by OrderID prefix
 	if strings.HasPrefix(payload.OrderID, "TPUP") {
-		response, err = pr.handleTopUpPayment(payload)
+		response, err = pr.handleTopUpPayment(userID, payload)
 	} else if strings.HasPrefix(payload.OrderID, "BKNG") {
-		response, err = pr.handleBookingPayment(payload)
+		response, err = pr.handleBookingPayment(userID, payload)
 	} else {
 		return nil, fmt.Errorf("400 | Invalid OrderID format")
 	}
@@ -42,11 +42,15 @@ func (pr *paymentRepository) Payment(payload entity.PaymentPayload) (*entity.Pay
 	return response, nil
 }
 
-func (pr *paymentRepository) handleTopUpPayment(payload entity.PaymentPayload) (*entity.PaymentResponse, error) {
+func (pr *paymentRepository) handleTopUpPayment(userID int, payload entity.PaymentPayload) (*entity.PaymentResponse, error) {
 	// Fetch the top-up transaction details by order ID
 	topup, topupErr := pr.getTopupTransactionByOrderID(payload.OrderID)
 	if topupErr != nil {
 		return nil, topupErr
+	}
+
+	if topup.UserID != uint(userID) {
+		return nil, fmt.Errorf("401 | Unauthorized access")
 	}
 
 	if topup.TransactionStatus == "cancel" || topup.TransactionStatus == "failed" {
@@ -106,11 +110,15 @@ func (pr *paymentRepository) handleTopUpPayment(payload entity.PaymentPayload) (
 	}, nil
 }
 
-func (pr *paymentRepository) handleBookingPayment(payload entity.PaymentPayload) (*entity.PaymentResponse, error) {
+func (pr *paymentRepository) handleBookingPayment(userID int, payload entity.PaymentPayload) (*entity.PaymentResponse, error) {
 	// Fetch booking details by order ID
 	booking, bookingErr := pr.getBookingByOrderID(payload.OrderID)
 	if bookingErr != nil {
 		return nil, bookingErr
+	}
+
+	if booking.GuestID != uint(userID) {
+		return nil, fmt.Errorf("401 | Unauthorized access")
 	}
 
 	// Validate booking status

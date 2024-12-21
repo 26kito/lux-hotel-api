@@ -5,6 +5,7 @@ import (
 	"lux-hotel/repository"
 	"strconv"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
 )
 
@@ -35,6 +36,7 @@ func NewPaymentService(paymentRepository repository.PaymentRepository) PaymentSe
 // @Router /api/order/payment [post]
 func (ps *paymentService) Payment(c echo.Context) error {
 	var payload entity.PaymentPayload
+	userID := c.Get("user").(jwt.MapClaims)["user_id"].(float64)
 
 	if err := c.Bind(&payload); err != nil {
 		return c.JSON(400, entity.ResponseError{
@@ -43,7 +45,7 @@ func (ps *paymentService) Payment(c echo.Context) error {
 		})
 	}
 
-	response, err := ps.PaymentRepository.Payment(payload)
+	response, err := ps.PaymentRepository.Payment(int(userID), payload)
 
 	if err != nil {
 		errCode, _ := strconv.Atoi(err.Error()[:3])
