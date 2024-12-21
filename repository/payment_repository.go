@@ -53,8 +53,8 @@ func (pr *paymentRepository) handleTopUpPayment(userID int, payload entity.Payme
 		return nil, fmt.Errorf("401 | Unauthorized access")
 	}
 
-	if topup.TransactionStatus == "cancel" || topup.TransactionStatus == "failed" {
-		return nil, fmt.Errorf("400 | Top-up transaction has been %s", topup.TransactionStatus)
+	if err := pr.validateTopupTransactionStatus(topup); err != nil {
+		return nil, err
 	}
 
 	// Check the transaction status from Midtrans
@@ -221,9 +221,17 @@ func (pr *paymentRepository) getBookingByOrderID(orderID string) (*entity.Bookin
 	return &booking, nil
 }
 
+func (pr *paymentRepository) validateTopupTransactionStatus(topup *entity.TopUpTransaction) error {
+	if topup.TransactionStatus != "pending" {
+		return fmt.Errorf("400 | Top-up transaction has been %s", topup.TransactionStatus)
+	}
+
+	return nil
+}
+
 func (pr *paymentRepository) validateBookingStatus(booking *entity.Booking) error {
 	if booking.BookingStatus != "pending" {
-		return fmt.Errorf("400 | Booking has been paid")
+		return fmt.Errorf("400 | Booking has been %s", booking.BookingStatus)
 	}
 
 	return nil
