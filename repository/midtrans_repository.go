@@ -26,7 +26,11 @@ func (mr *midtransRepository) HandleTopUpCallback(payload entity.MidtransCallbac
 		var payment entity.Payment
 
 		mr.DB.Where("order_id = ?", payload.OrderID).First(&transaction)
-		mr.DB.Model(&user).Where("user_id = ?", transaction.UserID).Update("balance", user.Balance+transaction.Amount)
+		mr.DB.Model(&user).Where("user_id = ?", transaction.UserID)
+
+		newBalance := user.Balance + transaction.Amount
+		mr.DB.Model(&user).Update("balance", newBalance)
+
 		mr.DB.Model(&transaction).Where("order_id = ?", payload.OrderID).Update("transaction_status", "settlement")
 		mr.DB.Model(&payment).Where("order_id = ?", payload.OrderID).Updates(map[string]interface{}{
 			"payment_status": "settlement",
