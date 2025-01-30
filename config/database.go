@@ -5,6 +5,8 @@ import (
 	"log"
 	"os"
 
+	"lux-hotel/entity"
+
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -29,6 +31,11 @@ func InitDB() {
 
 	if err != nil {
 		panic("failed to connect database")
+	}
+
+	err = DB.AutoMigrate(&entity.User{}, &entity.TopUpTransaction{}, &entity.Hotel{}, &entity.Room{}, &entity.Payment{}, &entity.Booking{})
+	if err != nil {
+		panic("failed to migrate database")
 	}
 
 	log.Println("Database connected")
