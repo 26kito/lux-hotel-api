@@ -11,7 +11,7 @@ import (
 )
 
 type HotelRepository interface {
-	GetHotelList() ([]entity.Hotel, error)
+	GetHotelList() ([]entity.GetHotelList, error)
 	GetHotelDetail(id int) (entity.Hotel, error)
 	Booking(userID, hotelID int, request entity.BookingRequest) (*entity.Booking, error)
 }
@@ -24,10 +24,16 @@ func NewHotelRepository(db *gorm.DB) HotelRepository {
 	return &hotelRepository{DB: db}
 }
 
-func (hr *hotelRepository) GetHotelList() ([]entity.Hotel, error) {
-	var hotels []entity.Hotel
+func (hr *hotelRepository) GetHotelList() ([]entity.GetHotelList, error) {
+	var hotels []entity.GetHotelList
 
-	result := hr.DB.Preload("Rooms").Find(&hotels)
+	// Perform a join between Hotel and Room tables to get only available rooms
+	result := hr.DB.Table("hotels").
+		Select("hotels.id, hotels.name, hotels.location, MIN(rooms.price) AS price, COUNT(rooms.id) AS available_rooms").
+		Joins("JOIN rooms ON rooms.hotel_id = hotels.id").
+		Where("rooms.status = ?", "Available").
+		Group("hotels.id").
+		Scan(&hotels)
 
 	if result.Error != nil {
 		return nil, fmt.Errorf("500 | %v", result.Error)

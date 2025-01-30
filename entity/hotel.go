@@ -8,3 +8,11 @@ type Hotel struct {
 	Email         string `gorm:"type:varchar(100)" json:"email"`
 	Rooms         []Room `gorm:"foreignKey:HotelID" json:"rooms"`
 }
+
+type GetHotelList struct {
+	ID             uint   `json:"id"`
+	Name           string `json:"name"`
+	Location       string `json:"location"`
+	Price          string `json:"price"`
+	AvailableRooms int    `json:"available_rooms"`
+}

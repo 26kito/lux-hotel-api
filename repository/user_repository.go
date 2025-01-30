@@ -16,6 +16,7 @@ type UserRepository interface {
 	GetBalance(int) (float64, error)
 	TopUpBalance(int, entity.UserTopUpBalancePayload) (*entity.TopUpTransaction, error)
 	GetBookHistory(int) ([]entity.BookingHistoryResponse, error)
+	GetUserByEmail(string) (*entity.User, error)
 }
 
 type userRepository struct {
@@ -77,6 +78,19 @@ func (ur *userRepository) Login(request entity.UserLoginPayload) (*entity.User, 
 	if err != nil {
 		log.Println(err)
 		return nil, fmt.Errorf("401 | unauthorized")
+	}
+
+	return &user, nil
+}
+
+func (ur *userRepository) GetUserByEmail(email string) (*entity.User, error) {
+	var user entity.User
+
+	result := ur.DB.Where("email = ?", email).First(&user)
+
+	if result.Error != nil {
+		log.Println(result.Error)
+		return nil, fmt.Errorf("404 | user not found")
 	}
 
 	return &user, nil

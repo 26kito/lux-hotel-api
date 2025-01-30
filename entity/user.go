@@ -26,6 +26,10 @@ type UserLoginPayload struct {
 	Password string `json:"password" form:"password" query:"password"`
 }
 
+type GetUserByEmailPayload struct {
+	Email string `json:"email" form:"email" query:"email"`
+}
+
 type TopUpTransaction struct {
 	ID                uint      `gorm:"primaryKey;autoIncrement" json:"id"`
 	UserID            uint      `gorm:"not null" json:"user_id"`

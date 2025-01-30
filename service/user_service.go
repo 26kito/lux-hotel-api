@@ -19,6 +19,7 @@ type UserService interface {
 	GetBalance(c echo.Context) error
 	TopUpBalance(c echo.Context) error
 	GetBookHistory(c echo.Context) error
+	GetUserByEmail(c echo.Context) error
 }
 
 type userService struct {
@@ -125,12 +126,47 @@ func (us *userService) Login(c echo.Context) error {
 		})
 	}
 
+	fullName := user.FirstName + " " + user.LastName
+	if user.LastName == "" {
+		fullName = user.FirstName
+	}
+
 	return c.JSON(200, entity.ResponseOK{
 		Status:  200,
 		Message: "User logged in successfully",
 		Data: map[string]string{
 			"token": tokenString,
+			"name":  fullName,
 		},
+	})
+}
+
+func (us *userService) GetUserByEmail(c echo.Context) error {
+	var request entity.GetUserByEmailPayload
+
+	if err := c.Bind(&request); err != nil {
+		return c.JSON(400, entity.ResponseError{
+			Status:  400,
+			Message: err.Error(),
+		})
+	}
+
+	user, err := us.UserRepository.GetUserByEmail(request.Email)
+
+	if err != nil {
+		errCode, _ := strconv.Atoi(err.Error()[:3])
+		errMessage := err.Error()[6:]
+
+		return c.JSON(errCode, entity.ResponseError{
+			Status:  errCode,
+			Message: errMessage,
+		})
+	}
+
+	return c.JSON(200, entity.ResponseOK{
+		Status:  200,
+		Message: "User retrieved successfully",
+		Data:    user,
 	})
 }
 
